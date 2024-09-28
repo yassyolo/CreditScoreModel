@@ -7,12 +7,10 @@ from sklearn.preprocessing import StandardScaler
 
 app = Flask(__name__)
 
-# Load the pre-trained model and scaler
 model = joblib.load('best_gradient_boosting_model.pkl')
 scaler = joblib.load('scaler.pkl')
 poly = joblib.load('polyy.pkl')
 
-# Feature weights
 feature_weights = {
     'NetMonthlyIncome': 2.6,
     'FixedMonthlyExpenses': 2.6,
@@ -46,7 +44,6 @@ feature_weights = {
 
 
 def feature_engineering(data):
-    # Apply feature weights to relevant features
     data['NetMonthlyIncome'] *= feature_weights['NetMonthlyIncome']
     data['FixedMonthlyExpenses'] *= feature_weights['FixedMonthlyExpenses']
     data['PermanentContractIncome'] *= feature_weights['PermanentContractIncome']
@@ -75,8 +72,6 @@ def feature_engineering(data):
     data['LoanAmount'] *= feature_weights['LoanAmount']
     data['LoanTermMonths'] *= feature_weights['LoanTermMonths']
     data['InterestRate'] *= feature_weights['InterestRate']
-
-    # Continue with feature engineering
     data['DisposableIncome'] = data['NetMonthlyIncome'] - (data['FixedMonthlyExpenses'] + data['LoanRepayment'])
     data['LoanRepaymentBurden'] = data['LoanRepayment'] / (data['NetMonthlyIncome'] + 1)
     data['AccountBalanceToLoanRatio'] = data['AccountBalance'] / (data['LoanAmount'] + 1)
@@ -98,15 +93,12 @@ def feature_engineering(data):
     data['HouseholdScore'] = (data['NumberOfHouseholdMembers'] - data['Dependents'] +
                               data['MembersWithProvenIncome'] * 2)
 
-    # New interactions and features
     data['IncomeLoanAmountInteraction'] = data['NetMonthlyIncome'] * data['LoanAmount']
     data['ExpensesDisposableIncomeInteraction'] = data['FixedMonthlyExpenses'] * data['DisposableIncome']
     data['DependencyRatio'] = data['Dependents'] / (data['NumberOfHouseholdMembers'] + 1)
     data['ProvenIncomeProportion'] = data['MembersWithProvenIncome'] / (data['NumberOfHouseholdMembers'] + 1)
     data['JobExperienceRatio'] = data['MonthsAtJob'] / (data['TotalWorkExperienceMonths'] + 1)
     data['EducationIncomeInteraction'] = data['EducationLevel'] * data['NetMonthlyIncome']
-
-    # Additional features
     data['IncomeToDebtRatio'] = data['NetMonthlyIncome'] / (data['LoanRepayment'] + data['FixedMonthlyExpenses'] + 1)
     data['SavingsRate'] = data['AccountBalance'] / (data['NetMonthlyIncome'] + 1)
     data['PropertyVehicleScore'] = data['HasApartmentOrHouse'] * 3 + data['HasLand'] * 2 + data['VehicleCount'] * 1.5
@@ -120,8 +112,6 @@ def feature_engineering(data):
         ['PermanentContractIncome', 'TemporaryContractIncome', 'CivilContractIncome', 'BusinessIncome', 'PensionIncome',
          'FreelanceIncome', 'OtherIncome']].sum(axis=1)
     data['LoanRepaymentIncomeDebtInteraction'] = data['LoanRepayment'] * data['IncomeToDebtRatio']
-
-    # New features
     data['NetIncomePerHouseholdMember'] = data['NetMonthlyIncome'] / (data['NumberOfHouseholdMembers'] + 1)
     data['DebtPerHouseholdMember'] = (
                 data[['LoanRepayment', 'FixedMonthlyExpenses']].sum(axis=1) / (data['NumberOfHouseholdMembers'] + 1))
@@ -140,8 +130,6 @@ def feature_engineering(data):
     data['IncomeAndDebtInteraction'] = (data['NetMonthlyIncome'] ** 2) / (
                 data[['LoanRepayment', 'FixedMonthlyExpenses']].sum(axis=1) + 1)
     data['IncomeSavingsInteraction'] = data['NetMonthlyIncome'] * data['SavingsRate']
-
-    # Additional features
     data['TotalLoanCost'] = data['LoanAmount'] * (1 + (data['InterestRate'] / 100) * (data['LoanTermMonths'] / 12))
     data['InterestRateToIncomeRatio'] = data['InterestRate'] / (data['NetMonthlyIncome'] + 1)
     data['HasOtherCreditsImpact'] = data['HasOtherCredits'] * data['IncomeToDebtRatio']
@@ -185,7 +173,6 @@ def feature_engineering(data):
     return data
 
 
-
 def calculate_credit_score(probability, min_score=300, max_score=850):
     probability = np.clip(probability, 0, 1)
     credit_score = min_score + (max_score - min_score) * probability
@@ -212,15 +199,11 @@ with open('feature_columns.pkl', 'rb') as f:
 def predict():
     data = request.json
 
-    # Convert JSON to DataFrame
     df = pd.DataFrame([data])
 
-
     df = feature_engineering(df)
-    # Scale features
     df_scaled = scaler.transform(df)
 
-    # Ensure the DataFrame has all expected columns
     missing_columns = [col for col in feature_columns if col not in df.columns]
     if missing_columns:
         return jsonify({
@@ -229,15 +212,12 @@ def predict():
             'missing_columns': missing_columns
         })
 
-    # Predict with the model
     prediction = model.predict_proba(df_scaled)
     probability_positive_class = prediction[0, 1]
 
-    # Calculate credit score and assess risk
     credit_score = calculate_credit_score(probability_positive_class)
     risk_category = assess_risk(probability_positive_class, credit_score)
 
-    # Return the results
     return jsonify({
         'probability': probability_positive_class,
         'credit_score': credit_score,
