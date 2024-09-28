@@ -1,0 +1,1 @@
+Flask application, deployed to Azure as app service, that includes pretrained model to predict credit score based on various metrics given by the customer when applying for loan. It returns the loan probability, risk group and credit score. It is use by my other project InfiniaBankSystem where it is consumed through its url from Azure.
